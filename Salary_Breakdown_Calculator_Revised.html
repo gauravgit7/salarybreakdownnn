@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Salary Breakdown Calculator</title>
+<style>
+  :root{--bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#e5e7eb;--accent:#2563eb;--accent2:#eff6ff;--good:#047857}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);font-family:Inter,Segoe UI,Arial,sans-serif;color:var(--text)}
+  .wrap{max-width:1100px;margin:0 auto;padding:28px 18px 50px}
+  h1{margin:0 0 6px;font-size:30px}.sub{color:var(--muted);margin-bottom:24px}
+  .grid{display:grid;grid-template-columns:320px 1fr;gap:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 4px 18px rgba(16,24,40,.05)}
+  label{display:block;font-weight:600;font-size:14px;margin:0 0 7px}
+  input,select{width:100%;padding:12px 13px;border:1px solid #d0d5dd;border-radius:10px;font-size:16px;background:#fff}
+  .field{margin-bottom:16px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.45}
+  .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+  .metric{background:var(--accent2);border-radius:12px;padding:14px}
+  .metric small{display:block;color:var(--muted);font-size:12px}.metric strong{display:block;font-size:21px;margin-top:5px}
+  h2{font-size:18px;margin:22px 0 10px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
+  tr.total td{font-weight:700;border-top:2px solid #cfd4dc}
+  tr.net td{font-weight:800;color:var(--good);font-size:15px}
+  .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:12px;font-weight:700}
+  .note{margin-top:18px;padding:12px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;font-size:12px;line-height:1.5;color:#713f12}
+  .actions{display:flex;gap:8px;margin-top:15px}.btn{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}.primary{background:var(--accent);color:white}.secondary{background:#eef2f6;color:#344054}
+  @media(max-width:800px){.grid{grid-template-columns:1fr}.summary{grid-template-columns:1fr 1fr}.card{padding:16px}}
+  @media(max-width:520px){.summary{grid-template-columns:1fr}table{font-size:12px}}
+  @media print{body{background:#fff}.wrap{padding:0}.grid{display:block}.card{box-shadow:none;margin-bottom:15px}.actions,.input-card{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Salary Breakdown Calculator</h1>
+  <div class="sub">Based on the formulas and assumptions in the <b>Check</b> sheet of the supplied Excel workbook.</div>
+
+  <div class="grid">
+    <div class="card input-card">
+      <div class="field">
+        <label for="gross">Monthly Gross Salary (NPR)</label>
+        <input id="gross" type="number" min="0" step="100" value="100000" oninput="calculate()">
+        <div class="hint">Enter the monthly gross amount used by the workbook.</div>
+      </div>
+      <div class="field">
+        <label for="gender">Gender</label>
+        <select id="gender" onchange="calculate()">
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+        </select>
+        <div class="hint">Female rebate is applied exactly as the sheet formula: 10% of SST and remuneration tax.</div>
+      </div>
+      <div class="field">
+        <label for="cit">Annual CIT Deposit (NPR)</label>
+        <input id="cit" type="number" min="0" step="1000" value="0" oninput="calculate()">
+      </div>
+      <div class="field">
+        <label for="life">Annual Life Insurance Deduction (NPR)</label>
+        <input id="life" type="number" min="0" max="40000" step="1000" value="0" oninput="calculate()">
+        <div class="hint">Capped at NPR 40,000, matching the workbook.</div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" onclick="window.print()">Print / Save PDF</button>
+        <button class="btn secondary" onclick="resetForm()">Reset</button>
+      </div>
+
+      <div class="note">
+        <b>Incentive tiers (used to derive Basic):</b><br>
+        &lt; 60,000 = 0% · 60,000–99,999 = 25% · 100,000–149,999 = 50% ·
+        150,000–199,999 = 63.33% · 200,000+ = 70%.
+        <br><br>
+        <b>SSF-applicable Basic (static per range):</b><br>
+        60,000–99,999 = 30,000 · 100,000–149,999 = 50,000 ·
+        150,000–199,999 = 55,000 · 200,000+ = 60,000.
+        SSF is always calculated on this fixed figure, even when the actual Basic works out higher.
+        Incentive is then whatever is left of Gross after Basic, Allowances and this capped SSF.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="summary">
+        <div class="metric"><small>Monthly Gross</small><strong id="mGross">—</strong></div>
+        <div class="metric"><small>Estimated Net / Month</small><strong id="mNet">—</strong></div>
+        <div class="metric"><small>Annual Net</small><strong id="aNet">—</strong></div>
+      </div>
+
+      <div id="tierLine" class="hint"></div>
+
+      <h2>Monthly Breakdown</h2>
+      <table>
+        <thead><tr><th>Component</th><th>Monthly (NPR)</th><th>Annual (NPR)</th></tr></thead>
+        <tbody id="monthlyRows"></tbody>
+      </table>
+
+      <h2>Annual Tax & Deduction Breakdown</h2>
+      <table>
+        <thead><tr><th>Component</th><th>Annual (NPR)</th></tr></thead>
+        <tbody id="taxRows"></tbody>
+      </table>
+
+      <h2>Final Payable</h2>
+      <table>
+        <tbody id="finalRows"></tbody>
+      </table>
+
+      <div class="note">
+        <b>Important:</b> This calculator reproduces the supplied workbook's formulas; it is not a current Nepal tax-law calculator.
+        Basic is still derived from Gross using the incentive-tier assumption (as in the Check sheet), and Allowances stay at
+        40/60 of that Basic. SSF — both the monthly SSF line and the annual 31% SSF contribution used for the retirement-fund
+        deduction — is calculated on the static "SSF Applicable Basic Salary Component" for the employee's salary range, not on
+        the actual Basic. Incentive is then the residual needed to make Basic + Allowances + SSF + Incentive equal Gross, so it
+        can differ slightly from the flat incentive-tier percentage shown above once the SSF cap is applied.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const n = x => Number.isFinite(x) ? x : 0;
+const money = x => new Intl.NumberFormat('en-IN',{maximumFractionDigits:2,minimumFractionDigits:2}).format(n(x));
+function incentiveRate(g){
+  if(g >= 200000) return .70;
+  if(g >= 150000) return .6333;
+  if(g >= 100000) return .50;
+  if(g >= 60000) return .25;
+  return 0;
+}
+function tierName(g){
+  if(g >= 200000) return "NPR 200,000 and above";
+  if(g >= 150000) return "NPR 150,000 – 199,999";
+  if(g >= 100000) return "NPR 100,000 – 149,999";
+  if(g >= 60000) return "NPR 60,000 – 99,999";
+  return "Below NPR 60,000";
+}
+// Static "SSF Applicable Basic Salary Component" table (Check sheet, B2:B5).
+// Even if the employee's real computed Basic is higher, SSF is only ever
+// calculated on this fixed figure for their salary range.
+function ssfApplicableBasic(g){
+  if(g >= 200000) return 60000;
+  if(g >= 150000) return 55000;
+  if(g >= 100000) return 50000;
+  if(g >= 60000) return 30000;
+  return null; // below 60,000 isn't covered by the table
+}
+function taxFromTaxable(t){
+  let tax=0;
+  if(t>1000000) tax += Math.min(t-1000000,500000)*.10;
+  if(t>1500000) tax += Math.min(t-1500000,1000000)*.20;
+  if(t>2500000) tax += Math.min(t-2500000,1500000)*.27;
+  if(t>4000000) tax += (t-4000000)*.29;
+  return tax;
+}
+function calculate(){
+  const gross=Math.max(0,n(parseFloat(document.getElementById('gross').value)));
+  const gender=document.getElementById('gender').value;
+  const cit=Math.max(0,n(parseFloat(document.getElementById('cit').value)));
+  const life=Math.min(40000,Math.max(0,n(parseFloat(document.getElementById('life').value))));
+  const incRate=incentiveRate(gross);
+
+  // Check sheet, step 1: use the incentive-tier assumption to derive the
+  // employee's real Basic (and Allowances), exactly as the sheet does:
+  //   Basic = (Gross - Gross*IncentiveTier%) / 186.66666%
+  //   Allowances = Basic / 60% * 40%
+  const assumedIncentive=gross*incRate;
+  const basic=(gross-assumedIncentive)/1.8666666;
+  const allowance=basic/.60*.40;
+
+  // Step 2: SSF is capped to the static "SSF Applicable Basic Salary
+  // Component" for the salary range, not the real Basic above. Below the
+  // lowest range there's no static figure, so SSF falls back to the real Basic.
+  const ssfBasic=ssfApplicableBasic(gross) ?? basic;
+  const ssf=ssfBasic*.20;
+
+  // Step 3: Incentive is whatever is left of Gross after Basic, Allowances
+  // and the capped SSF - i.e. it absorbs the gap created by the SSF cap.
+  const incentive=Math.max(0, gross-basic-allowance-ssf);
+  const total=basic+allowance+ssf+incentive;
+
+  const festival=gross ? gross*((incentive+basic)/gross) : 0; // equivalent to incentive + basic
+  const annualGross=total*12 + festival;
+  const ssfContribution=annualGross ? (ssfBasic*12)*.31 : 0;
+  const retirementDeduction=Math.min(ssfContribution+cit,500000,annualGross/3);
+  const taxable=Math.max(0,annualGross-retirementDeduction-life);
+
+  // Sheet: SST is zero whenever SSF contribution > 0.
+  const sstGross=ssfContribution>0 ? 0 : Math.min(taxable,1000000)*.01;
+  const remunerationGross=taxFromTaxable(taxable);
+  const femaleSstRebate=gender==="Female" ? sstGross*.10 : 0;
+  const femaleTaxRebate=gender==="Female" ? remunerationGross*.10 : 0;
+  const sstPayable=sstGross-femaleSstRebate;
+  const taxPayable=remunerationGross-femaleTaxRebate;
+  const ssfMonthly=ssfContribution/12;
+  const citMonthly=cit/12;
+  const sstMonthly=sstPayable/12;
+  const taxMonthly=taxPayable/12;
+  const netMonthly=total-ssfMonthly-citMonthly-sstMonthly-taxMonthly;
+  const annualNet=netMonthly*12;
+
+  document.getElementById('mGross').textContent="NPR "+money(total);
+  document.getElementById('mNet').textContent="NPR "+money(netMonthly);
+  document.getElementById('aNet').textContent="NPR "+money(annualNet);
+  document.getElementById('tierLine').innerHTML=`Salary range: <span class="pill">${tierName(gross)}</span> &nbsp; SSF-applicable Basic: <b>${ssfApplicableBasic(gross)!==null ? 'NPR '+money(ssfApplicableBasic(gross)) : 'n/a (uses real Basic)'}</b>`;
+
+  const rows=[
+    ["Basic",basic,basic*12],
+    ["Allowances",allowance,allowance*12],
+    [`SSF included in salary (20% of ${ssfApplicableBasic(gross)!==null ? 'capped SSF Basic' : 'Basic'})`,ssf,ssf*12],
+    ["Incentives (residual after Basic + Allowances + SSF)",incentive,incentive*12],
+    ["Monthly Gross / Total",total,annualGross-festival],
+    ["Festival Bonus","—",festival],
+    ["Annual Total Remuneration","—",annualGross]
+  ];
+  document.getElementById('monthlyRows').innerHTML=rows.map((r,i)=>{
+    const cls=(i===4||i===6)?' class="total"':'';
+    return `<tr${cls}><td>${r[0]}</td><td>${typeof r[1]==='number'?'NPR '+money(r[1]):r[1]}</td><td>NPR ${money(r[2])}</td></tr>`;
+  }).join('');
+
+  const taxRows=[
+    ["Annual Total Remuneration",annualGross],
+    ["SSF Contribution / Retirement Fund (31% of SSF-applicable Basic)",ssfContribution],
+    ["CIT Deposit",cit],
+    ["Maximum Retirement Fund Deduction",retirementDeduction],
+    ["Life Insurance Deduction",life],
+    ["Taxable Income",taxable],
+    ["SST before rebate",sstGross],
+    ["Remuneration Tax before rebate",remunerationGross],
+    ["Female SST rebate",femaleSstRebate],
+    ["Female Remuneration Tax rebate",femaleTaxRebate],
+    ["SST Payable",sstPayable],
+    ["Remuneration Tax Payable",taxPayable]
+  ];
+  document.getElementById('taxRows').innerHTML=taxRows.map((r,i)=>{
+    const cls=[5,10,11].includes(i)?' class="total"':'';
+    return `<tr${cls}><td>${r[0]}</td><td>NPR ${money(r[1])}</td></tr>`;
+  }).join('');
+
+  document.getElementById('finalRows').innerHTML=[
+    ["SSF deposited per month",ssfMonthly],
+    ["CIT deposited per month",citMonthly],
+    ["SST per month",sstMonthly],
+    ["Remuneration Tax per month",taxMonthly],
+    ["Net payable per month",netMonthly],
+    ["Net payable per year",annualNet]
+  ].map((r,i)=>`<tr class="${i>=4?'net':''}"><td>${r[0]}</td><td>NPR ${money(r[1])}</td></tr>`).join('');
+}
+function resetForm(){
+  document.getElementById('gross').value=100000;
+  document.getElementById('gender').value='Male';
+  document.getElementById('cit').value=0;
+  document.getElementById('life').value=0;
+  calculate();
+}
+calculate();
+</script>
+</body>
+</html>
