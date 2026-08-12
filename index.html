@@ -25,6 +25,7 @@
   th:first-child,td:first-child{text-align:left}
   th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
   tr.total td{font-weight:700;border-top:2px solid #cfd4dc}
+  tr.sub td{color:var(--muted);font-style:italic}
   tr.net td{font-weight:800;color:var(--good);font-size:15px}
   .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:12px;font-weight:700}
   .note{margin-top:18px;padding:12px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;font-size:12px;line-height:1.5;color:#713f12}
@@ -45,20 +46,19 @@
   .cfgTable th{text-align:left}
   .small{padding:6px 10px;font-size:12.5px}
   .configNote{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.5;margin-bottom:14px}
-  .ssfGrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
   @media(max-width:800px){.grid{grid-template-columns:1fr}.summary{grid-template-columns:1fr 1fr}.card{padding:16px}}
-  @media(max-width:520px){.summary{grid-template-columns:1fr}table{font-size:12px}.ssfGrid{grid-template-columns:1fr}}
+  @media(max-width:520px){.summary{grid-template-columns:1fr}table{font-size:12px}}
   @media print{body{background:#fff}.wrap{padding:0}.grid{display:block}.card{box-shadow:none;margin-bottom:15px}.actions,.input-card,.configLink{display:none}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Salary Breakdown Calculator</h1>
-  <div class="sub">Based on the <b>Check</b> sheet formulas in the Revised Salary Calculation workbook.</div>
+  <div class="sub">Based on the <b>Check</b> sheet formulas in the Revised Salary Calculation Format workbook.</div>
 
   <div class="grid">
     <div class="card input-card">
-      <div class="configLink"><button class="link-btn" onclick="openPasswordGate()">⚙ Configure Ranges &amp; SSF%</button></div>
+      <div class="configLink"><button class="link-btn" onclick="openPasswordGate()">⚙ Configure Ranges</button></div>
 
       <div class="field">
         <label for="gross">Monthly Gross Salary (NPR)</label>
@@ -71,7 +71,12 @@
           <option value="Male">Male</option>
           <option value="Female">Female</option>
         </select>
-        <div class="hint">Female rebate is applied exactly as the sheet formula: 10% of SST and remuneration tax.</div>
+        <div class="hint">Female rebate is 10% of SST and remuneration tax.</div>
+      </div>
+      <div class="field">
+        <label for="overtime">Overtime / Other Payments (NPR/yr)</label>
+        <input id="overtime" type="number" min="0" step="1000" value="0" oninput="calculate()">
+        <div class="hint">Added into Annual Total Remuneration, matching the sheet's "Overtime/Other payments" row.</div>
       </div>
       <div class="field">
         <label for="cit">Annual CIT Deposit (NPR)</label>
@@ -119,12 +124,11 @@
       </table>
 
       <div class="note">
-        <b>How this works:</b> The range's Applicable Basic Component is treated as if it were the Gross salary and run through the
-        standard split: Basic = Component ÷ (166.67% + Monthly SSF%), Allowances = Basic ÷ 60% × 40%, SSF = Basic × Monthly SSF%.
-        Because that divisor reserves exactly the right slice for SSF, Basic + Allowances + SSF always add back up to the Component
-        exactly. Incentive is simply Gross − Component, so the four figures together always reconcile to the actual Gross. Separately,
-        the annual SSF Contribution (used for the retirement-fund deduction) is Basic × 12 × Annual SSF Contribution %. If Gross
-        doesn't fall inside any configured range, the Component defaults to the actual Gross (so Incentive = 0).
+        <b>How this works:</b> Basic = Component ÷ 186.667%, Allowances = Basic ÷ 60% × 40%, SSF (20% of Basic) — these three plus
+        Incentive always reconcile to Gross exactly, matching the sheet's own Monthly/Yearly section. Separately, the SSF Contribution
+        used for the retirement-fund deduction and "SSF deposited per month" is 31% of annual Basic (the same Basic as above) — that
+        31% splits into the Employer's 20% (already reflected in the Monthly/Yearly "SSF" line) plus the Employee's 11%, shown below
+        for transparency. Overtime/Other Payments, if any, is added into Annual Total Remuneration.
       </div>
     </div>
   </div>
@@ -134,7 +138,7 @@
 <div id="pwOverlay" class="overlay hidden" onclick="if(event.target===this) hide('pwOverlay')">
   <div class="modal">
     <h3>Configuration Access</h3>
-    <p class="desc">Enter the configuration password to edit salary ranges, applicable basic components, and SSF percentages.</p>
+    <p class="desc">Enter the configuration password to edit salary ranges and applicable basic components.</p>
     <input type="password" id="pwInput" placeholder="Password" onkeydown="if(event.key==='Enter') checkPassword()">
     <div id="pwError" class="error hidden">Incorrect password. Try again.</div>
     <div class="actions">
@@ -147,22 +151,9 @@
 <!-- Config panel -->
 <div id="configOverlay" class="overlay hidden" onclick="if(event.target===this) hide('configOverlay')">
   <div class="modal wide">
-    <h3>Configure Salary Ranges &amp; SSF%</h3>
-    <p class="desc">Define each Gross-salary range and its Applicable Basic Component. That Component is run through the Basic/Allowances/SSF split as if it were the Gross; the real Gross minus the Component becomes Incentive. Leave "Max" blank for an open-ended top range.</p>
+    <h3>Configure Salary Ranges</h3>
+    <p class="desc">Define each Gross-salary range and its Applicable Basic Component. Leave "Max" blank for an open-ended top range.</p>
     <div class="configNote">Saved changes are stored in this browser only (localStorage). Opening this file on another computer or browser will show the defaults until reconfigured there too.</div>
-
-    <div class="ssfGrid">
-      <div class="field">
-        <label for="cfgMonthlySsfRate">Monthly SSF % (of Basic)</label>
-        <input type="number" id="cfgMonthlySsfRate" min="0" max="100" step="0.1" value="20">
-        <div class="hint">Feeds the Component → Basic divisor (166.67% + this %) and the monthly SSF line in the salary structure.</div>
-      </div>
-      <div class="field">
-        <label for="cfgAnnualSsfRate">Annual SSF Contribution % (of Basic)</label>
-        <input type="number" id="cfgAnnualSsfRate" min="0" max="100" step="0.1" value="31">
-        <div class="hint">Used only for the annual retirement-fund SSF Contribution / deduction calculation.</div>
-      </div>
-    </div>
 
     <table class="cfgTable">
       <thead><tr><th>Min Gross (NPR)</th><th>Max Gross (NPR)</th><th>Applicable Basic Component (NPR)</th><th></th></tr></thead>
@@ -185,10 +176,12 @@ const n = x => Number.isFinite(x) ? x : 0;
 const money = x => new Intl.NumberFormat('en-IN',{maximumFractionDigits:2,minimumFractionDigits:2}).format(n(x));
 const moneyInt = x => new Intl.NumberFormat('en-IN',{maximumFractionDigits:0}).format(n(x));
 
-const LS_KEY = 'salaryRangeConfig_v5';
+const LS_KEY = 'salaryRangeConfig_v7';
 const CONFIG_PASSWORD = 'Salary@Breakdown123';
-const DEFAULT_MONTHLY_SSF_RATE = 20;   // percent, of Basic — feeds the Component->Basic divisor
-const DEFAULT_ANNUAL_SSF_RATE = 31;    // percent, of annual Basic — retirement deduction only
+const SALARY_STRUCTURE_DIVISOR = (5/3) + 0.20; // 186.667% — matches the sheet's own Basic formula
+const SSF_CONTRIBUTION_RATE = 0.31;             // total: employer 20% + employee 11%
+const EMPLOYER_SSF_RATE = 0.20;
+const EMPLOYEE_SSF_RATE = 0.11;
 const DEFAULT_RANGES = [
   {min:30000,  max:59999,  component:15000},
   {min:60000,  max:99999,  component:30000},
@@ -197,39 +190,25 @@ const DEFAULT_RANGES = [
   {min:200000, max:null,   component:60000}
 ];
 
-let config = loadConfig();
+let ranges = loadRanges();
 let editRanges = [];
 
-function loadConfig(){
+function loadRanges(){
   try{
     const raw = localStorage.getItem(LS_KEY);
     if(raw){
       const parsed = JSON.parse(raw);
-      if(parsed && Array.isArray(parsed.ranges) && parsed.ranges.length){
-        return {
-          ranges: parsed.ranges,
-          monthlySsfRatePercent: Number.isFinite(parsed.monthlySsfRatePercent) ? parsed.monthlySsfRatePercent : DEFAULT_MONTHLY_SSF_RATE,
-          annualSsfRatePercent: Number.isFinite(parsed.annualSsfRatePercent) ? parsed.annualSsfRatePercent : DEFAULT_ANNUAL_SSF_RATE
-        };
-      }
+      if(Array.isArray(parsed) && parsed.length) return parsed;
     }
   }catch(e){}
-  return {
-    ranges: JSON.parse(JSON.stringify(DEFAULT_RANGES)),
-    monthlySsfRatePercent: DEFAULT_MONTHLY_SSF_RATE,
-    annualSsfRatePercent: DEFAULT_ANNUAL_SSF_RATE
-  };
+  return JSON.parse(JSON.stringify(DEFAULT_RANGES));
 }
-function persistConfig(newRanges, monthlyRate, annualRate){
-  config = {
-    ranges: newRanges.slice().sort((a,b)=>a.min-b.min),
-    monthlySsfRatePercent: monthlyRate,
-    annualSsfRatePercent: annualRate
-  };
-  localStorage.setItem(LS_KEY, JSON.stringify(config));
+function persistRanges(newRanges){
+  ranges = newRanges.slice().sort((a,b)=>a.min-b.min);
+  localStorage.setItem(LS_KEY, JSON.stringify(ranges));
 }
 function findRange(gross){
-  return config.ranges.find(r => gross >= r.min && (r.max === null || r.max === undefined || gross <= r.max)) || null;
+  return ranges.find(r => gross >= r.min && (r.max === null || r.max === undefined || gross <= r.max)) || null;
 }
 function rangeLabel(r){
   return `NPR ${moneyInt(r.min)} – ${r.max!=null ? moneyInt(r.max) : 'and above'}`;
@@ -257,9 +236,7 @@ function checkPassword(){
 }
 
 function openConfig(){
-  editRanges = JSON.parse(JSON.stringify(config.ranges));
-  document.getElementById('cfgMonthlySsfRate').value = config.monthlySsfRatePercent;
-  document.getElementById('cfgAnnualSsfRate').value = config.annualSsfRatePercent;
+  editRanges = JSON.parse(JSON.stringify(ranges));
   document.getElementById('cfgError').classList.add('hidden');
   renderConfigTable();
   show('configOverlay');
@@ -291,27 +268,13 @@ function removeRange(i){
   renderConfigTable();
 }
 function resetToDefaults(){
-  if(confirm('Reset all ranges and SSF percentages to the workbook defaults (15k/30k/40k/55k/60k, 20% monthly SSF, 31% annual SSF)?')){
+  if(confirm('Reset all ranges to the workbook defaults (15k/30k/40k/55k/60k)?')){
     editRanges = JSON.parse(JSON.stringify(DEFAULT_RANGES));
-    document.getElementById('cfgMonthlySsfRate').value = DEFAULT_MONTHLY_SSF_RATE;
-    document.getElementById('cfgAnnualSsfRate').value = DEFAULT_ANNUAL_SSF_RATE;
     renderConfigTable();
   }
 }
 function saveConfigChanges(){
   const err = document.getElementById('cfgError');
-  const monthlyRate = parseFloat(document.getElementById('cfgMonthlySsfRate').value);
-  const annualRate = parseFloat(document.getElementById('cfgAnnualSsfRate').value);
-  if(!Number.isFinite(monthlyRate) || monthlyRate < 0){
-    err.textContent = 'Monthly SSF % must be a valid number of 0 or more.';
-    err.classList.remove('hidden');
-    return;
-  }
-  if(!Number.isFinite(annualRate) || annualRate < 0){
-    err.textContent = 'Annual SSF Contribution % must be a valid number of 0 or more.';
-    err.classList.remove('hidden');
-    return;
-  }
   for(const r of editRanges){
     if(!Number.isFinite(r.min) || r.min<0){ err.textContent='Every range needs a valid Min Gross (0 or more).'; err.classList.remove('hidden'); return; }
     if(r.max!=null && r.max<=r.min){ err.textContent='Max Gross must be greater than Min Gross (or left blank for no upper limit).'; err.classList.remove('hidden'); return; }
@@ -326,7 +289,7 @@ function saveConfigChanges(){
     }
   }
   err.classList.add('hidden');
-  persistConfig(editRanges, monthlyRate, annualRate);
+  persistRanges(editRanges);
   hide('configOverlay');
   calculate();
 }
@@ -343,44 +306,44 @@ function taxFromTaxable(t){
 function calculate(){
   const gross=Math.max(0,n(parseFloat(document.getElementById('gross').value)));
   const gender=document.getElementById('gender').value;
+  const overtime=Math.max(0,n(parseFloat(document.getElementById('overtime').value)));
   const cit=Math.max(0,n(parseFloat(document.getElementById('cit').value)));
   const life=Math.min(40000,Math.max(0,n(parseFloat(document.getElementById('life').value))));
 
   const range = findRange(gross);
   const componentUsed = range ? range.component : gross;
 
-  const monthlySsfRate = config.monthlySsfRatePercent/100;
-  const annualSsfRate = config.annualSsfRatePercent/100;
-
-  // The Component is run through the same Basic/Allowances/SSF split a full
-  // Gross would get: Basic = Component / (166.67% + Monthly SSF%). That
-  // divisor reserves exactly the SSF slice, so Basic+Allowances+SSF always
-  // sum back to the Component exactly. Incentive is simply what's left of
-  // the real Gross once the Component is set aside.
-  const divisor = (5/3) + monthlySsfRate;
-  const basic = componentUsed/divisor;
+  // Salary structure: Basic derived from the Component using the sheet's own
+  // 186.667% divisor. Basic+Allowances+SSF(20%)+Incentive always reconcile to Gross.
+  const basic = componentUsed/SALARY_STRUCTURE_DIVISOR;
   const allowance = basic/.60*.40;
-  const ssf = basic*monthlySsfRate;
-
-  const incentiveRaw = gross - componentUsed;
+  const ssfLine = basic*0.20;
+  const incentiveRaw = gross - basic - allowance - ssfLine;
   const incentive = Math.max(0, incentiveRaw);
-  const total = basic+allowance+ssf+incentive;
+  const total = basic+allowance+ssfLine+incentive;
 
   const negWarn = document.getElementById('negWarning');
   if(incentiveRaw < 0){
     negWarn.style.display='block';
-    negWarn.textContent = `Warning: the configured Applicable Basic Component (NPR ${money(componentUsed)}) is greater than Gross (NPR ${money(gross)}). Incentive has been floored at 0 and the Monthly Total will not reconcile to Gross — review the range configuration.`;
+    negWarn.textContent = `Warning: the configured Applicable Basic Component (NPR ${money(componentUsed)}) produces a salary-structure total greater than Gross (NPR ${money(gross)}). Incentive has been floored at 0 — review the range configuration.`;
   } else {
     negWarn.style.display='none';
   }
 
   document.getElementById('rangeNote').innerHTML = range
-    ? `<b>Matched range:</b> ${rangeLabel(range)}<br>Applicable Basic Component: NPR ${money(range.component)}<br><br>Basic = Component ÷ (166.67% + ${config.monthlySsfRatePercent}%). Incentive = Gross − Component.`
-    : `<b>No configured range matches this Gross.</b><br>Component defaults to the actual Gross, so Incentive = 0.`;
+    ? `<b>Matched range:</b> ${rangeLabel(range)}<br>Applicable Basic Component: NPR ${money(range.component)}`
+    : `<b>No configured range matches this Gross.</b><br>Component defaults to the actual Gross.`;
 
   const festival=incentive+basic;
-  const annualGross=total*12 + festival;
-  const ssfContribution = basic*12*annualSsfRate;
+  const annualGross=total*12 + festival + overtime;
+
+  // SSF Contribution: 31% of annual Basic (same Basic as the structure above),
+  // split into Employer's 20% and Employee's 11% for transparency.
+  const basicAnnual = basic*12;
+  const employerSSF = basicAnnual*EMPLOYER_SSF_RATE;
+  const employeeSSF = basicAnnual*EMPLOYEE_SSF_RATE;
+  const ssfContribution = basicAnnual*SSF_CONTRIBUTION_RATE;
+
   const retirementDeduction=Math.min(ssfContribution+cit,500000,annualGross/3);
   const taxable=Math.max(0,annualGross-retirementDeduction-life);
 
@@ -401,26 +364,29 @@ function calculate(){
   document.getElementById('mNet').textContent="NPR "+money(netMonthly);
   document.getElementById('aNet').textContent="NPR "+money(annualNet);
   document.getElementById('tierLine').innerHTML = range
-    ? `Salary range: <span class="pill">${rangeLabel(range)}</span> &nbsp; Monthly SSF: <b>${config.monthlySsfRatePercent}%</b> &nbsp; Annual SSF Contribution: <b>${config.annualSsfRatePercent}%</b>`
-    : `Salary range: <span class="pill">Unmatched — fallback split used</span> &nbsp; Monthly SSF: <b>${config.monthlySsfRatePercent}%</b> &nbsp; Annual SSF Contribution: <b>${config.annualSsfRatePercent}%</b>`;
+    ? `Salary range: <span class="pill">${rangeLabel(range)}</span>`
+    : `Salary range: <span class="pill">Unmatched — fallback split used</span>`;
 
   const rows=[
-    ["Basic (Component ÷ divisor)",basic,basic*12],
+    ["Basic",basic,basic*12],
     ["Allowances",allowance,allowance*12],
-    [`SSF (${config.monthlySsfRatePercent}% of Basic)`,ssf,ssf*12],
-    ["Incentives (Gross − Component)",incentive,incentive*12],
-    ["Monthly Gross / Total",total,annualGross-festival],
+    ["SSF (20% of Basic)",ssfLine,ssfLine*12],
+    ["Incentives",incentive,incentive*12],
+    ["Monthly Gross / Total",total,total*12],
     ["Festival Bonus","—",festival],
+    ["Overtime / Other Payments","—",overtime],
     ["Annual Total Remuneration","—",annualGross]
   ];
   document.getElementById('monthlyRows').innerHTML=rows.map((r,i)=>{
-    const cls=(i===4||i===6)?' class="total"':'';
+    const cls=(i===4||i===7)?' class="total"':'';
     return `<tr${cls}><td>${r[0]}</td><td>${typeof r[1]==='number'?'NPR '+money(r[1]):r[1]}</td><td>NPR ${money(r[2])}</td></tr>`;
   }).join('');
 
   const taxRows=[
     ["Annual Total Remuneration",annualGross],
-    [`SSF Contribution / Retirement Fund (${config.annualSsfRatePercent}% of annual Basic)`,ssfContribution],
+    ["SSF Contribution / Retirement Fund (31% of annual Basic)",ssfContribution],
+    ["— Employer's share (20% of annual Basic)",employerSSF],
+    ["— Employee's share (11% of annual Basic)",employeeSSF],
     ["CIT Deposit",cit],
     ["Maximum Retirement Fund Deduction",retirementDeduction],
     ["Life Insurance Deduction",life],
@@ -433,7 +399,7 @@ function calculate(){
     ["Remuneration Tax Payable",taxPayable]
   ];
   document.getElementById('taxRows').innerHTML=taxRows.map((r,i)=>{
-    const cls=[5,10,11].includes(i)?' class="total"':'';
+    const cls=[2,3].includes(i)?' class="sub"':([7,12,13].includes(i)?' class="total"':'');
     return `<tr${cls}><td>${r[0]}</td><td>NPR ${money(r[1])}</td></tr>`;
   }).join('');
 
@@ -449,6 +415,7 @@ function calculate(){
 function resetForm(){
   document.getElementById('gross').value=100000;
   document.getElementById('gender').value='Male';
+  document.getElementById('overtime').value=0;
   document.getElementById('cit').value=0;
   document.getElementById('life').value=0;
   calculate();
