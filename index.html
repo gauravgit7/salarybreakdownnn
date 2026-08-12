@@ -27,17 +27,23 @@
   tr.total td{font-weight:700;border-top:2px solid #cfd4dc}
   tr.sub td{color:var(--muted);font-style:italic}
   tr.net td{font-weight:800;color:var(--good);font-size:15px}
+  tr.active td{background:#ecfdf5}
+  tr.inactive td{color:#b7bfcc}
   .pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:12px;font-weight:700}
+  .pill.on{background:#d1fae5;color:#065f46}
+  .pill.off{background:#f1f5f9;color:#64748b}
   .note{margin-top:18px;padding:12px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;font-size:12px;line-height:1.5;color:#713f12}
+  .cite{margin-top:10px;padding:10px 14px;background:#f8fafc;border:1px solid var(--line);border-radius:10px;font-size:11.5px;line-height:1.5;color:var(--muted)}
   .warn{margin-top:12px;padding:10px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;font-size:12.5px;line-height:1.5;color:var(--bad);font-weight:600}
   .actions{display:flex;gap:8px;margin-top:15px;flex-wrap:wrap}.btn{border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;font-size:14px}.primary{background:var(--accent);color:white}.secondary{background:#eef2f6;color:#344054}.danger{background:#fef2f2;color:var(--bad)}
   .link-btn{background:none;border:0;color:var(--accent);font-weight:700;font-size:12.5px;cursor:pointer;padding:0;text-decoration:underline}
   .configLink{text-align:right;margin-bottom:14px}
-  .overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+  .overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;overflow-y:auto}
   .overlay.hidden{display:none}
-  .modal{background:#fff;border-radius:16px;padding:24px;max-width:420px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.25)}
-  .modal.wide{max-width:780px}
+  .modal{background:#fff;border-radius:16px;padding:24px;max-width:420px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.25);margin:auto}
+  .modal.wide{max-width:820px}
   .modal h3{margin:0 0 6px;font-size:18px}
+  .modal h4{margin:20px 0 8px;font-size:14px;padding-top:14px;border-top:1px solid var(--line)}
   .modal p.desc{color:var(--muted);font-size:13px;margin:0 0 16px}
   .error{color:var(--bad);font-size:13px;margin-top:8px}
   .error.hidden{display:none}
@@ -46,19 +52,20 @@
   .cfgTable th{text-align:left}
   .small{padding:6px 10px;font-size:12.5px}
   .configNote{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.5;margin-bottom:14px}
+  .twoCol{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:800px){.grid{grid-template-columns:1fr}.summary{grid-template-columns:1fr 1fr}.card{padding:16px}}
-  @media(max-width:520px){.summary{grid-template-columns:1fr}table{font-size:12px}}
+  @media(max-width:520px){.summary{grid-template-columns:1fr}table{font-size:12px}.twoCol{grid-template-columns:1fr}}
   @media print{body{background:#fff}.wrap{padding:0}.grid{display:block}.card{box-shadow:none;margin-bottom:15px}.actions,.input-card,.configLink{display:none}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Salary Breakdown Calculator</h1>
-  <div class="sub">Based on the <b>Check</b> sheet formulas in the Revised Salary Calculation Format workbook.</div>
+  <div class="sub">Based on the <b>Check</b> sheet formulas in HR's Revised Salary Calculation Format workbook, with current Nepal income-tax rules applied.</div>
 
   <div class="grid">
     <div class="card input-card">
-      <div class="configLink"><button class="link-btn" onclick="openPasswordGate()">⚙ Configure Ranges</button></div>
+      <div class="configLink"><button class="link-btn" onclick="openPasswordGate()">⚙ Configure Ranges &amp; Tax Rules</button></div>
 
       <div class="field">
         <label for="gross">Monthly Gross Salary (NPR)</label>
@@ -71,12 +78,11 @@
           <option value="Male">Male</option>
           <option value="Female">Female</option>
         </select>
-        <div class="hint">Female rebate is 10% of SST and remuneration tax.</div>
+        <div class="hint">Female rebate is applied exactly as the sheet formula.</div>
       </div>
       <div class="field">
         <label for="overtime">Overtime / Other Payments (NPR/yr)</label>
         <input id="overtime" type="number" min="0" step="1000" value="0" oninput="calculate()">
-        <div class="hint">Added into Annual Total Remuneration, matching the sheet's "Overtime/Other payments" row.</div>
       </div>
       <div class="field">
         <label for="cit">Annual CIT Deposit (NPR)</label>
@@ -118,17 +124,24 @@
         <tbody id="taxRows"></tbody>
       </table>
 
+      <h2>Tax Rules Applied — <span id="fyLabelHeading"></span></h2>
+      <div id="taxRulesLine" class="hint"></div>
+      <table>
+        <thead><tr><th>Bracket</th><th>Rate</th><th>Portion of Taxable Income</th><th>Tax from Bracket</th></tr></thead>
+        <tbody id="bracketRows"></tbody>
+      </table>
+      <div class="cite" id="taxCite"></div>
+
       <h2>Final Payable</h2>
       <table>
         <tbody id="finalRows"></tbody>
       </table>
 
       <div class="note">
-        <b>How this works:</b> Basic = Component ÷ 186.667%, Allowances = Basic ÷ 60% × 40%, SSF (20% of Basic) — these three plus
-        Incentive always reconcile to Gross exactly, matching the sheet's own Monthly/Yearly section. Separately, the SSF Contribution
-        used for the retirement-fund deduction and "SSF deposited per month" is 31% of annual Basic (the same Basic as above) — that
-        31% splits into the Employer's 20% (already reflected in the Monthly/Yearly "SSF" line) plus the Employee's 11%, shown below
-        for transparency. Overtime/Other Payments, if any, is added into Annual Total Remuneration.
+        <b>How this works:</b> Basic = Component ÷ 186.667%, Allowances = Basic ÷ 60% × 40%, SSF (20% of Basic) — these plus Incentive
+        always reconcile to Gross. SSF Contribution (31% of annual Basic — Employer 20% + Employee 11%) drives the retirement-fund
+        deduction and "SSF deposited per month." Taxable Income then runs through the SST/Remuneration Tax rules shown above, which
+        are editable in the config menu so they can be updated for future fiscal years without touching the code.
       </div>
     </div>
   </div>
@@ -138,7 +151,7 @@
 <div id="pwOverlay" class="overlay hidden" onclick="if(event.target===this) hide('pwOverlay')">
   <div class="modal">
     <h3>Configuration Access</h3>
-    <p class="desc">Enter the configuration password to edit salary ranges and applicable basic components.</p>
+    <p class="desc">Enter the configuration password to edit salary ranges and tax rules.</p>
     <input type="password" id="pwInput" placeholder="Password" onkeydown="if(event.key==='Enter') checkPassword()">
     <div id="pwError" class="error hidden">Incorrect password. Try again.</div>
     <div class="actions">
@@ -151,7 +164,7 @@
 <!-- Config panel -->
 <div id="configOverlay" class="overlay hidden" onclick="if(event.target===this) hide('configOverlay')">
   <div class="modal wide">
-    <h3>Configure Salary Ranges</h3>
+    <h3>Configure Salary Ranges &amp; Tax Rules</h3>
     <p class="desc">Define each Gross-salary range and its Applicable Basic Component. Leave "Max" blank for an open-ended top range.</p>
     <div class="configNote">Saved changes are stored in this browser only (localStorage). Opening this file on another computer or browser will show the defaults until reconfigured there too.</div>
 
@@ -161,8 +174,38 @@
     </table>
     <div class="actions">
       <button class="btn secondary small" onclick="addRange()">+ Add Range</button>
-      <button class="btn danger small" onclick="resetToDefaults()">Reset to Defaults</button>
     </div>
+
+    <h4>Tax Rules</h4>
+    <div class="field">
+      <label for="cfgFyLabel">Fiscal Year Label</label>
+      <input type="text" id="cfgFyLabel" value="FY 2083/84">
+    </div>
+    <div class="twoCol">
+      <div class="field">
+        <label for="cfgSstThreshold">SST Threshold (NPR)</label>
+        <input type="number" id="cfgSstThreshold" min="0" step="10000" value="1000000">
+      </div>
+      <div class="field">
+        <label for="cfgSstRate">SST Rate (%)</label>
+        <input type="number" id="cfgSstRate" min="0" max="100" step="0.1" value="1">
+      </div>
+    </div>
+    <div class="hint" style="margin:-8px 0 14px">SST is automatically waived (0%) whenever SSF Contribution is greater than 0, matching the sheet's rule — this toggle isn't separately configurable.</div>
+    <div class="field">
+      <label for="cfgFemaleRebate">Female Rebate (% of SST + Remuneration Tax)</label>
+      <input type="number" id="cfgFemaleRebate" min="0" max="100" step="0.1" value="10">
+    </div>
+    <label>Remuneration Tax Brackets (applied above the SST Threshold)</label>
+    <table class="cfgTable">
+      <thead><tr><th>From (NPR)</th><th>To (NPR)</th><th>Rate (%)</th><th></th></tr></thead>
+      <tbody id="bracketConfigRows"></tbody>
+    </table>
+    <div class="actions">
+      <button class="btn secondary small" onclick="addBracket()">+ Add Bracket</button>
+      <button class="btn danger small" onclick="resetToDefaults()">Reset Everything to Defaults</button>
+    </div>
+
     <div id="cfgError" class="error hidden"></div>
     <div class="actions">
       <button class="btn primary" onclick="saveConfigChanges()">Save Changes</button>
@@ -176,12 +219,13 @@ const n = x => Number.isFinite(x) ? x : 0;
 const money = x => new Intl.NumberFormat('en-IN',{maximumFractionDigits:2,minimumFractionDigits:2}).format(n(x));
 const moneyInt = x => new Intl.NumberFormat('en-IN',{maximumFractionDigits:0}).format(n(x));
 
-const LS_KEY = 'salaryRangeConfig_v7';
+const LS_KEY = 'salaryCalcConfig_v8';
 const CONFIG_PASSWORD = 'Salary@Breakdown123';
 const SALARY_STRUCTURE_DIVISOR = (5/3) + 0.20; // 186.667% — matches the sheet's own Basic formula
 const SSF_CONTRIBUTION_RATE = 0.31;             // total: employer 20% + employee 11%
 const EMPLOYER_SSF_RATE = 0.20;
 const EMPLOYEE_SSF_RATE = 0.11;
+
 const DEFAULT_RANGES = [
   {min:30000,  max:59999,  component:15000},
   {min:60000,  max:99999,  component:30000},
@@ -189,29 +233,53 @@ const DEFAULT_RANGES = [
   {min:150000, max:199999, component:55000},
   {min:200000, max:null,   component:60000}
 ];
+const DEFAULT_TAX = {
+  fyLabel: "FY 2083/84",
+  sstThreshold: 1000000,
+  sstRatePercent: 1,
+  femaleRebatePercent: 10,
+  brackets: [
+    {from:1000000, to:1500000, rate:10},
+    {from:1500000, to:2500000, rate:20},
+    {from:2500000, to:4000000, rate:27},
+    {from:4000000, to:null,    rate:29}
+  ]
+};
 
-let ranges = loadRanges();
+let config = loadConfig();
 let editRanges = [];
+let editBrackets = [];
 
-function loadRanges(){
+function loadConfig(){
   try{
     const raw = localStorage.getItem(LS_KEY);
     if(raw){
       const parsed = JSON.parse(raw);
-      if(Array.isArray(parsed) && parsed.length) return parsed;
+      if(parsed && Array.isArray(parsed.ranges) && parsed.ranges.length && parsed.tax && Array.isArray(parsed.tax.brackets)){
+        return { ranges: parsed.ranges, tax: parsed.tax };
+      }
     }
   }catch(e){}
-  return JSON.parse(JSON.stringify(DEFAULT_RANGES));
+  return {
+    ranges: JSON.parse(JSON.stringify(DEFAULT_RANGES)),
+    tax: JSON.parse(JSON.stringify(DEFAULT_TAX))
+  };
 }
-function persistRanges(newRanges){
-  ranges = newRanges.slice().sort((a,b)=>a.min-b.min);
-  localStorage.setItem(LS_KEY, JSON.stringify(ranges));
+function persistConfig(newRanges, newTax){
+  config = {
+    ranges: newRanges.slice().sort((a,b)=>a.min-b.min),
+    tax: newTax
+  };
+  localStorage.setItem(LS_KEY, JSON.stringify(config));
 }
 function findRange(gross){
-  return ranges.find(r => gross >= r.min && (r.max === null || r.max === undefined || gross <= r.max)) || null;
+  return config.ranges.find(r => gross >= r.min && (r.max === null || r.max === undefined || gross <= r.max)) || null;
 }
 function rangeLabel(r){
   return `NPR ${moneyInt(r.min)} – ${r.max!=null ? moneyInt(r.max) : 'and above'}`;
+}
+function bracketLabel(b){
+  return `NPR ${moneyInt(b.from)} – ${b.to!=null ? moneyInt(b.to) : 'and above'}`;
 }
 
 function show(id){document.getElementById(id).classList.remove('hidden');}
@@ -236,9 +304,15 @@ function checkPassword(){
 }
 
 function openConfig(){
-  editRanges = JSON.parse(JSON.stringify(ranges));
+  editRanges = JSON.parse(JSON.stringify(config.ranges));
+  editBrackets = JSON.parse(JSON.stringify(config.tax.brackets));
+  document.getElementById('cfgFyLabel').value = config.tax.fyLabel;
+  document.getElementById('cfgSstThreshold').value = config.tax.sstThreshold;
+  document.getElementById('cfgSstRate').value = config.tax.sstRatePercent;
+  document.getElementById('cfgFemaleRebate').value = config.tax.femaleRebatePercent;
   document.getElementById('cfgError').classList.add('hidden');
   renderConfigTable();
+  renderBracketTable();
   show('configOverlay');
 }
 function renderConfigTable(){
@@ -252,55 +326,109 @@ function renderConfigTable(){
     </tr>`).join('');
 }
 function updateRange(i, field, val){
-  if(field==='max'){
-    editRanges[i].max = val==='' ? null : Number(val);
-  } else {
-    editRanges[i][field] = Number(val);
-  }
+  if(field==='max'){ editRanges[i].max = val==='' ? null : Number(val); }
+  else { editRanges[i][field] = Number(val); }
 }
 function addRange(){
   const lastMax = editRanges.length ? editRanges[editRanges.length-1].max : null;
   editRanges.push({min: lastMax!=null ? lastMax+1 : 0, max:null, component:0});
   renderConfigTable();
 }
-function removeRange(i){
-  editRanges.splice(i,1);
-  renderConfigTable();
+function removeRange(i){ editRanges.splice(i,1); renderConfigTable(); }
+
+function renderBracketTable(){
+  const tbody=document.getElementById('bracketConfigRows');
+  tbody.innerHTML = editBrackets.map((b,i)=>`
+    <tr>
+      <td><input type="number" min="0" value="${b.from}" oninput="updateBracket(${i},'from',this.value)"></td>
+      <td><input type="number" min="0" value="${b.to===null||b.to===undefined?'':b.to}" placeholder="No limit" oninput="updateBracket(${i},'to',this.value)"></td>
+      <td><input type="number" min="0" max="100" step="0.1" value="${b.rate}" oninput="updateBracket(${i},'rate',this.value)"></td>
+      <td><button class="btn danger small" onclick="removeBracket(${i})">Remove</button></td>
+    </tr>`).join('');
 }
+function updateBracket(i, field, val){
+  if(field==='to'){ editBrackets[i].to = val==='' ? null : Number(val); }
+  else { editBrackets[i][field] = Number(val); }
+}
+function addBracket(){
+  const lastTo = editBrackets.length ? editBrackets[editBrackets.length-1].to : null;
+  editBrackets.push({from: lastTo!=null ? lastTo : 0, to:null, rate:0});
+  renderBracketTable();
+}
+function removeBracket(i){ editBrackets.splice(i,1); renderBracketTable(); }
+
 function resetToDefaults(){
-  if(confirm('Reset all ranges to the workbook defaults (15k/30k/40k/55k/60k)?')){
+  if(confirm('Reset all ranges and tax rules to the defaults (15k/30k/40k/55k/60k ranges; FY 2083/84 tax slabs)?')){
     editRanges = JSON.parse(JSON.stringify(DEFAULT_RANGES));
+    editBrackets = JSON.parse(JSON.stringify(DEFAULT_TAX.brackets));
+    document.getElementById('cfgFyLabel').value = DEFAULT_TAX.fyLabel;
+    document.getElementById('cfgSstThreshold').value = DEFAULT_TAX.sstThreshold;
+    document.getElementById('cfgSstRate').value = DEFAULT_TAX.sstRatePercent;
+    document.getElementById('cfgFemaleRebate').value = DEFAULT_TAX.femaleRebatePercent;
     renderConfigTable();
+    renderBracketTable();
   }
 }
 function saveConfigChanges(){
   const err = document.getElementById('cfgError');
+  const fyLabel = document.getElementById('cfgFyLabel').value.trim() || 'Current FY';
+  const sstThreshold = parseFloat(document.getElementById('cfgSstThreshold').value);
+  const sstRatePercent = parseFloat(document.getElementById('cfgSstRate').value);
+  const femaleRebatePercent = parseFloat(document.getElementById('cfgFemaleRebate').value);
+
+  if(!Number.isFinite(sstThreshold) || sstThreshold<0){ err.textContent='SST Threshold must be a valid number of 0 or more.'; err.classList.remove('hidden'); return; }
+  if(!Number.isFinite(sstRatePercent) || sstRatePercent<0){ err.textContent='SST Rate must be a valid number of 0 or more.'; err.classList.remove('hidden'); return; }
+  if(!Number.isFinite(femaleRebatePercent) || femaleRebatePercent<0){ err.textContent='Female Rebate must be a valid number of 0 or more.'; err.classList.remove('hidden'); return; }
+
   for(const r of editRanges){
     if(!Number.isFinite(r.min) || r.min<0){ err.textContent='Every range needs a valid Min Gross (0 or more).'; err.classList.remove('hidden'); return; }
-    if(r.max!=null && r.max<=r.min){ err.textContent='Max Gross must be greater than Min Gross (or left blank for no upper limit).'; err.classList.remove('hidden'); return; }
-    if(!Number.isFinite(r.component) || r.component<0){ err.textContent='Every range needs a valid Applicable Basic Component (0 or more).'; err.classList.remove('hidden'); return; }
+    if(r.max!=null && r.max<=r.min){ err.textContent='Range Max must be greater than Min (or left blank).'; err.classList.remove('hidden'); return; }
+    if(!Number.isFinite(r.component) || r.component<0){ err.textContent='Every range needs a valid Applicable Basic Component.'; err.classList.remove('hidden'); return; }
   }
-  const sorted = editRanges.slice().sort((a,b)=>a.min-b.min);
-  for(let i=1;i<sorted.length;i++){
-    if(sorted[i].min <= (sorted[i-1].max ?? Infinity)){
-      err.textContent = `Ranges overlap: "${rangeLabel(sorted[i-1])}" and "${rangeLabel(sorted[i])}". Adjust before saving.`;
+  const sortedRanges = editRanges.slice().sort((a,b)=>a.min-b.min);
+  for(let i=1;i<sortedRanges.length;i++){
+    if(sortedRanges[i].min <= (sortedRanges[i-1].max ?? Infinity)){
+      err.textContent = `Ranges overlap: "${rangeLabel(sortedRanges[i-1])}" and "${rangeLabel(sortedRanges[i])}".`;
       err.classList.remove('hidden');
       return;
     }
   }
+
+  for(const b of editBrackets){
+    if(!Number.isFinite(b.from) || b.from<0){ err.textContent='Every tax bracket needs a valid "From" value.'; err.classList.remove('hidden'); return; }
+    if(b.to!=null && b.to<=b.from){ err.textContent='Bracket "To" must be greater than "From" (or left blank).'; err.classList.remove('hidden'); return; }
+    if(!Number.isFinite(b.rate) || b.rate<0){ err.textContent='Every tax bracket needs a valid Rate.'; err.classList.remove('hidden'); return; }
+  }
+  const sortedBrackets = editBrackets.slice().sort((a,b)=>a.from-b.from);
+  for(let i=1;i<sortedBrackets.length;i++){
+    if(sortedBrackets[i].from < sortedBrackets[i-1].to ?? sortedBrackets[i].from < Infinity){
+      if(sortedBrackets[i-1].to!=null && sortedBrackets[i].from < sortedBrackets[i-1].to){
+        err.textContent = `Tax brackets overlap: "${bracketLabel(sortedBrackets[i-1])}" and "${bracketLabel(sortedBrackets[i])}".`;
+        err.classList.remove('hidden');
+        return;
+      }
+    }
+  }
+
   err.classList.add('hidden');
-  persistRanges(editRanges);
+  persistConfig(editRanges, {
+    fyLabel, sstThreshold, sstRatePercent, femaleRebatePercent,
+    brackets: sortedBrackets
+  });
   hide('configOverlay');
   calculate();
 }
 
-function taxFromTaxable(t){
+function taxFromBrackets(t, brackets){
   let tax=0;
-  if(t>1000000) tax += Math.min(t-1000000,500000)*.10;
-  if(t>1500000) tax += Math.min(t-1500000,1000000)*.20;
-  if(t>2500000) tax += Math.min(t-2500000,1500000)*.27;
-  if(t>4000000) tax += (t-4000000)*.29;
-  return tax;
+  const breakdown = brackets.map(b=>{
+    const to = (b.to===null || b.to===undefined) ? Infinity : b.to;
+    const amount = Math.max(0, Math.min(t,to)-b.from);
+    const bracketTax = amount*(b.rate/100);
+    tax += bracketTax;
+    return {from:b.from, to:b.to, rate:b.rate, amount, bracketTax, applies: amount>0};
+  });
+  return {tax, breakdown};
 }
 
 function calculate(){
@@ -313,8 +441,6 @@ function calculate(){
   const range = findRange(gross);
   const componentUsed = range ? range.component : gross;
 
-  // Salary structure: Basic derived from the Component using the sheet's own
-  // 186.667% divisor. Basic+Allowances+SSF(20%)+Incentive always reconcile to Gross.
   const basic = componentUsed/SALARY_STRUCTURE_DIVISOR;
   const allowance = basic/.60*.40;
   const ssfLine = basic*0.20;
@@ -337,8 +463,6 @@ function calculate(){
   const festival=incentive+basic;
   const annualGross=total*12 + festival + overtime;
 
-  // SSF Contribution: 31% of annual Basic (same Basic as the structure above),
-  // split into Employer's 20% and Employee's 11% for transparency.
   const basicAnnual = basic*12;
   const employerSSF = basicAnnual*EMPLOYER_SSF_RATE;
   const employeeSSF = basicAnnual*EMPLOYEE_SSF_RATE;
@@ -347,10 +471,12 @@ function calculate(){
   const retirementDeduction=Math.min(ssfContribution+cit,500000,annualGross/3);
   const taxable=Math.max(0,annualGross-retirementDeduction-life);
 
-  const sstGross=ssfContribution>0 ? 0 : Math.min(taxable,1000000)*.01;
-  const remunerationGross=taxFromTaxable(taxable);
-  const femaleSstRebate=gender==="Female" ? sstGross*.10 : 0;
-  const femaleTaxRebate=gender==="Female" ? remunerationGross*.10 : 0;
+  const sstWaived = ssfContribution>0;
+  const sstGross = sstWaived ? 0 : Math.min(taxable,config.tax.sstThreshold)*(config.tax.sstRatePercent/100);
+  const {tax:remunerationGross, breakdown} = taxFromBrackets(taxable, config.tax.brackets);
+  const femaleRebateRate = config.tax.femaleRebatePercent/100;
+  const femaleSstRebate=gender==="Female" ? sstGross*femaleRebateRate : 0;
+  const femaleTaxRebate=gender==="Female" ? remunerationGross*femaleRebateRate : 0;
   const sstPayable=sstGross-femaleSstRebate;
   const taxPayable=remunerationGross-femaleTaxRebate;
   const ssfMonthly=ssfContribution/12;
@@ -402,6 +528,21 @@ function calculate(){
     const cls=[2,3].includes(i)?' class="sub"':([7,12,13].includes(i)?' class="total"':'');
     return `<tr${cls}><td>${r[0]}</td><td>NPR ${money(r[1])}</td></tr>`;
   }).join('');
+
+  // Dynamic tax-rules panel
+  document.getElementById('fyLabelHeading').textContent = config.tax.fyLabel;
+  document.getElementById('taxRulesLine').innerHTML =
+    `SST (${config.tax.sstRatePercent}% up to NPR ${moneyInt(config.tax.sstThreshold)}): <span class="pill ${sstWaived?'off':'on'}">${sstWaived?'Waived — SSF Contribution > 0':'Applied'}</span> &nbsp;
+     Female Rebate (${config.tax.femaleRebatePercent}% of SST + Remuneration Tax): <span class="pill ${gender==='Female'?'on':'off'}">${gender==='Female'?'Applied':'Not applicable'}</span>`;
+
+  const bracketRowsHtml = [
+    `<tr class="${sstWaived?'inactive':(sstGross>0?'active':'inactive')}"><td>SST — up to NPR ${moneyInt(config.tax.sstThreshold)}</td><td>${config.tax.sstRatePercent}%</td><td>NPR ${money(Math.min(taxable,config.tax.sstThreshold))}</td><td>NPR ${money(sstGross)}</td></tr>`
+  ].concat(breakdown.map(b=>{
+    const cls = b.applies ? 'active' : 'inactive';
+    return `<tr class="${cls}"><td>${bracketLabel(b)}</td><td>${b.rate}%</td><td>NPR ${money(b.amount)}</td><td>NPR ${money(b.bracketTax)}</td></tr>`;
+  }));
+  document.getElementById('bracketRows').innerHTML = bracketRowsHtml.join('');
+  document.getElementById('taxCite').innerHTML = `Rates per Nepal's Inland Revenue Department notice for ${config.tax.fyLabel}. Editable above (⚙ Configure) for future fiscal years.`;
 
   document.getElementById('finalRows').innerHTML=[
     ["SSF deposited per month",ssfMonthly],
